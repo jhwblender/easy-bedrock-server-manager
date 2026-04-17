@@ -1,0 +1,9 @@
+config.ps1
+BACKUP/
+current_version.txt
+*.exe
+*.zip
+*.pdb
+worlds/
+resource_packs/
+behavior_packs/
