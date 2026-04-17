@@ -9,3 +9,6 @@ $NoIP_Hostname = "yourhostname.ddns.net"
 
 # Hour (24h) to check for Minecraft updates each day
 $UpdateCheckHour = 2   # 2 = 2:00 AM
+
+# Auto-update this script from GitHub on the same schedule as Minecraft updates
+$ScriptAutoUpdate = $true

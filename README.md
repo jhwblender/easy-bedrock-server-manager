@@ -39,6 +39,7 @@ Open `config.ps1` in any text editor:
 | `$NoIP_Password` | Your No-IP account password. |
 | `$NoIP_Hostname` | Your No-IP hostname, e.g. `myserver.ddns.net` |
 | `$UpdateCheckHour` | Hour (0–23) to check for Minecraft updates each day. Default: `2` (2 AM) |
+| `$ScriptAutoUpdate` | `$true` / `$false` — auto-update the manager itself from GitHub on the same schedule. Default: `$true` |
 
 No-IP is completely optional — if you leave `$NoIP_Username` empty the manager skips all DDNS updates.
 

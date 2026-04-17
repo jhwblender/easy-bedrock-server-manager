@@ -12,6 +12,8 @@
 #   - Auto-restarts server if it crashes
 # ============================================================
 
+$ScriptVersion = "1.1.0"
+
 # ==========================
 #       CONFIGURATION
 # ==========================
@@ -156,6 +158,46 @@ function Stop-MCServer($proc) {
     }
 }
 
+function Update-Script($proc) {
+    if (-not $ScriptAutoUpdate) { return }
+    Write-Log "Checking for script updates..." "Yellow"
+    try {
+        $resp   = Invoke-WebRequest -Uri "https://api.github.com/repos/jhwblender/easy-bedrock-server-manager/releases/latest" -UseBasicParsing
+        $latest = ($resp.Content | ConvertFrom-Json).tag_name -replace '^v', ''
+    } catch {
+        Write-Log "Could not check for script updates: $_" "Gray"
+        return
+    }
+
+    if ([Version]$latest -le [Version]$ScriptVersion) {
+        Write-Log "Script is up to date (v$ScriptVersion)." "Green"
+        return
+    }
+
+    Write-Log "Script update available: v$latest (current: v$ScriptVersion)" "Cyan"
+    $url      = "https://raw.githubusercontent.com/jhwblender/easy-bedrock-server-manager/v$latest/Start-BedrockServer.ps1"
+    $tempPath = "$gameDir\_Update-BedrockServer.ps1"
+
+    try {
+        Invoke-WebRequest -Uri $url -OutFile $tempPath -UseBasicParsing
+    } catch {
+        Write-Log "ERROR: Failed to download script update: $_" "Red"
+        return
+    }
+
+    if ($proc -and !$proc.HasExited) {
+        Send-Command $proc "say [SERVER] Server manager is updating. Restarting in 30 seconds."
+        Start-Sleep -Seconds 30
+        Stop-MCServer $proc
+    }
+
+    Copy-Item $tempPath "$gameDir\Start-BedrockServer.ps1" -Force
+    Remove-Item $tempPath
+    Write-Log "Script updated to v$latest. Relaunching..." "Cyan"
+    Start-Process powershell -ArgumentList "-ExecutionPolicy Bypass -NoExit -File `"$gameDir\Start-BedrockServer.ps1`""
+    exit
+}
+
 # ============================================================
 #  STARTUP
 # ============================================================
@@ -252,6 +294,8 @@ while ($true) {
     if ($now.Hour -eq $UpdateCheckHour -and $lastCheckDate -ne $dateKey) {
         $lastCheckDate = $dateKey
         Write-Log "Running scheduled update check..." "Yellow"
+
+        Update-Script $serverProc
 
         $latest = Get-LatestInfo
         if ($latest) {
