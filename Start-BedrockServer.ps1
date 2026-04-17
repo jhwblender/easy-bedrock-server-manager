@@ -12,19 +12,57 @@
 #   - Auto-restarts server if it crashes
 # ============================================================
 
-$ScriptVersion = "1.1.0"
+$ScriptVersion = "1.2.0"
 
 # ==========================
 #       CONFIGURATION
 # ==========================
 
-$configPath = "$PSScriptRoot\config.ps1"
-if (!(Test-Path $configPath)) {
-    Write-Host "ERROR: config.ps1 not found." -ForegroundColor Red
-    Write-Host "Copy config.example.ps1 to config.ps1 and fill in your details." -ForegroundColor Yellow
-    Start-Sleep 10
-    exit 1
+function New-Config($path) {
+    Write-Host ""
+    Write-Host "  No config.ps1 found - let's set one up!" -ForegroundColor Cyan
+    Write-Host ""
+
+    $username = Read-Host "  No-IP username (email) [leave blank to skip DDNS]"
+    $password = ""
+    $hostname = ""
+    if ($username) {
+        $secPass  = Read-Host "  No-IP password" -AsSecureString
+        $password = [Runtime.InteropServices.Marshal]::PtrToStringAuto(
+                        [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secPass))
+        $hostname = Read-Host "  No-IP hostname (e.g. myserver.ddns.net)"
+    }
+
+    $hourInput = Read-Host "  Hour to check for updates 0-23 [default: 2]"
+    $hour      = if ($hourInput -match '^\d+$' -and [int]$hourInput -le 23) { $hourInput } else { "2" }
+
+    $auInput    = Read-Host "  Auto-update this script from GitHub? y/n [default: y]"
+    $autoUpdate = if ($auInput -eq "n") { '$false' } else { '$true' }
+
+    Set-Content $path -Encoding UTF8 -Value @"
+# ============================================================
+# CONFIGURATION  -  edit anytime, changes apply immediately
+# ============================================================
+
+# No-IP DDNS  -  leave Username empty to skip DDNS updates
+`$NoIP_Username = "$username"
+`$NoIP_Password = "$password"
+`$NoIP_Hostname = "$hostname"
+
+# Hour (24h) to check for Minecraft updates each day
+`$UpdateCheckHour = $hour
+
+# Auto-update this script from GitHub on the same schedule as Minecraft updates
+`$ScriptAutoUpdate = $autoUpdate
+"@
+
+    Write-Host ""
+    Write-Host "  config.ps1 created! Edit it anytime - changes apply immediately." -ForegroundColor Green
+    Write-Host ""
 }
+
+$configPath = "$PSScriptRoot\config.ps1"
+if (!(Test-Path $configPath)) { New-Config $configPath }
 . $configPath
 
 # ==========================
@@ -240,6 +278,7 @@ $lastCrashTime     = $null
 $crashCooldownSec  = 60   # wait at least 60 s before restarting after a crash
 $noIPIntervalMin   = 15
 $lastNoIPUpdate    = Get-Date  # already updated at startup
+$configLastWrite   = (Get-Item $configPath).LastWriteTime
 
 Write-Log "Manager running. Update check scheduled at $($UpdateCheckHour):00 each day. No-IP refresh every $noIPIntervalMin min. Press Ctrl+C to exit." "Cyan"
 Write-Log "Type any Minecraft server command and press Enter to send it." "Cyan"
@@ -279,6 +318,14 @@ while ($true) {
         $lastCrashTime = Get-Date
         $serverProc    = Start-MCServer
         continue
+    }
+
+    # -- Config hot-reload ---------------------------------
+    $configWrite = (Get-Item $configPath).LastWriteTime
+    if ($configWrite -ne $configLastWrite) {
+        . $configPath
+        $configLastWrite = $configWrite
+        Write-Log "Config reloaded." "Cyan"
     }
 
     # -- Periodic No-IP refresh ----------------------------
